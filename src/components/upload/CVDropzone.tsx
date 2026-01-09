@@ -1,10 +1,11 @@
+import type React from "react";
 import { useCallback, useState } from "react";
 import { Upload, FileText, X, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
 interface CVDropzoneProps {
-  onFileSelect: (file: File) => void;
+  onFileSelect: (file: File | null) => void;
   className?: string;
 }
 
@@ -43,7 +44,8 @@ export function CVDropzone({ onFileSelect, className }: CVDropzoneProps) {
 
   const clearFile = useCallback(() => {
     setSelectedFile(null);
-  }, []);
+    onFileSelect(null);
+  }, [onFileSelect]);
 
   return (
     <div className={cn("w-full", className)}>

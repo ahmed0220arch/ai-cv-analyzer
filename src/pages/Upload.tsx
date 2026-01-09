@@ -4,6 +4,7 @@ import { Sparkles, ArrowRight, FileText, Zap, Shield } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { CVDropzone } from "@/components/upload/CVDropzone";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 const steps = [
   { icon: FileText, label: "Upload CV", description: "PDF or TXT format" },
@@ -13,22 +14,55 @@ const steps = [
 
 export default function Upload() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
 
-  const handleFileSelect = (selectedFile: File) => {
+  const handleFileSelect = (selectedFile: File | null) => {
     setFile(selectedFile);
   };
 
-  const handleAnalyze = () => {
-    if (!file) return;
-    
+  const handleAnalyze = async () => {
+    if (!file) {
+      toast({ title: "No file selected", description: "Please upload a CV before analyzing.", variant: "destructive" });
+      return;
+    }
+
+    setAnalyzeError(null);
     setIsAnalyzing(true);
-    // Simulate analysis
-    setTimeout(() => {
+
+    try {
+      const text = await file.text();
+
+      if (!text.trim()) {
+        throw new Error("Could not read CV text. Please upload a TXT file or try a different PDF.");
+      }
+
+      const response = await fetch("http://localhost:8000/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Analysis failed");
+      }
+
+      const data = await response.json();
+
+      // Persist for dashboard rendering and refresh resilience
+      localStorage.setItem("latestAnalysis", JSON.stringify(data));
+
+      navigate("/dashboard", { state: { analysis: data, source: "upload" } });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to analyze CV";
+      setAnalyzeError(message);
+      toast({ title: "Analysis failed", description: message, variant: "destructive" });
+    } finally {
       setIsAnalyzing(false);
-      navigate("/dashboard");
-    }, 2000);
+    }
   };
 
   return (
@@ -72,6 +106,12 @@ export default function Upload() {
         <div className="animate-fade-in-up" style={{ animationDelay: "0.2s" }}>
           <CVDropzone onFileSelect={handleFileSelect} />
         </div>
+
+        {analyzeError && (
+          <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            {analyzeError}
+          </div>
+        )}
 
         {/* Analyze Button */}
         <div className="mt-8 flex justify-center animate-fade-in-up" style={{ animationDelay: "0.3s" }}>
